@@ -13,4 +13,4 @@ Numerical Mathematics and Computing — Ward Cheney and David Kincaid
 ## Velocity Profile of hard disks converges to Maxwell-Boltzmann Distribution
 ![](Maxwellian.gif)
 ## Gaussian random numbers converge to a Gaussian distribution as the number of samples increases
-![](Histo.gif)
+![](Histo.gif)![](CLT.gif)
