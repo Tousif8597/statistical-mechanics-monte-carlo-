@@ -8,3 +8,5 @@ Statistical Mechanics: Algorithms and Computations — Werner Krauth
 Scientific Computing in Python — Abhijit Kar Gupta
 
 Numerical Mathematics and Computing — Ward Cheney and David Kincaid
+## 🎞️ Random Walk on a 3*3 lattice
+![3×3 Random Walk on a Lattice](tmp.gif)
