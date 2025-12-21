@@ -11,4 +11,4 @@ Numerical Mathematics and Computing — Ward Cheney and David Kincaid
 ## 🎞️ Random Walk on a 3*3 lattice
 ![3×3 Random Walk on a Lattice](tmp.gif)
 ## Velocity Profile of hard disks converges to Maxwell-Boltzmann Distribution
-![](Maxwellian.mp4)
+https://github.com/Tousif8597/statistical-mechanics-monte-carlo-/blob/main/Maxwellian.mp4
