@@ -12,5 +12,5 @@ Numerical Mathematics and Computing — Ward Cheney and David Kincaid
 ![3×3 Random Walk on a Lattice](tmp.gif)
 ## Velocity Profile of hard disks converges to Maxwell-Boltzmann Distribution
 ![](Maxwellian.gif)
-
+## Gaussian random numbers converge to a Gaussian distribution as the number of samples increases
 ![](Histo.gif)
