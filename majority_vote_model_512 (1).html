@@ -1,0 +1,295 @@
+
+<style>
+#mv2{padding:1rem 0;font-family:var(--font-sans);}
+.mvc{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end;margin-bottom:1rem;}
+.mvg{display:flex;flex-direction:column;gap:3px;}
+.mvg label{font-size:12px;color:var(--color-text-secondary);}
+.mvg .vv{font-size:13px;font-weight:500;color:var(--color-text-primary);min-width:48px;display:inline-block;}
+.mvs{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:1rem;}
+.mvscard{background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:8px 12px;}
+.mvscard .sl{font-size:11px;color:var(--color-text-secondary);margin-bottom:1px;}
+.mvscard .sv{font-size:17px;font-weight:500;color:var(--color-text-primary);}
+.mvrow{display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap;}
+.mvbr{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;}
+canvas#lc{border:0.5px solid var(--color-border-tertiary);border-radius:4px;display:block;image-rendering:pixelated;}
+.mleg{display:flex;gap:14px;margin-top:5px;font-size:11px;color:var(--color-text-secondary);}
+.mleg span{display:flex;align-items:center;gap:4px;}
+.mleg i{display:inline-block;width:10px;height:10px;border-radius:2px;}
+.ct{font-size:11px;color:var(--color-text-secondary);margin-bottom:4px;}
+.warn{font-size:11px;color:var(--color-text-warning);margin-top:4px;}
+</style>
+
+<div id="mv2">
+<h2 class="sr-only">Isotropic Majority Vote Model on square lattice up to 512x512</h2>
+
+<div class="mvc">
+  <div class="mvg">
+    <label>noise q &nbsp;<span class="vv" id="qv">0.05</span></label>
+    <input type="range" id="qs" min="0" max="50" value="5" step="1" style="width:150px;">
+  </div>
+  <div class="mvg">
+    <label>lattice N &nbsp;<span class="vv" id="nv">128</span></label>
+    <input type="range" id="ns" min="0" max="8" value="3" step="1" style="width:150px;">
+  </div>
+  <div class="mvg">
+    <label>speed &nbsp;<span class="vv" id="spv">med</span></label>
+    <input type="range" id="sps" min="1" max="5" value="3" step="1" style="width:110px;">
+  </div>
+  <div class="mvbr">
+    <button id="btnR">Run</button>
+    <button id="btnSt">Step</button>
+    <button id="btnRs">Reset</button>
+    <button id="btnSc">Scan q ↗</button>
+  </div>
+</div>
+<div class="warn" id="warnMsg"></div>
+
+<div class="mvs">
+  <div class="mvscard"><div class="sl">magnetization |m|</div><div class="sv" id="sm">—</div></div>
+  <div class="mvscard"><div class="sl">q (noise)</div><div class="sv" id="sq">—</div></div>
+  <div class="mvscard"><div class="sl">sweeps</div><div class="sv" id="ss">0</div></div>
+  <div class="mvscard"><div class="sl">phase</div><div class="sv" id="sp">—</div></div>
+</div>
+
+<div class="mvrow">
+  <div>
+    <canvas id="lc" width="320" height="320"></canvas>
+    <div class="mleg">
+      <span><i style="background:#378add;"></i>+1</span>
+      <span><i style="background:#e24b4a;"></i>−1</span>
+    </div>
+  </div>
+  <div style="flex:1;min-width:200px;">
+    <div class="ct">|m| over time (last 300 sweeps)</div>
+    <canvas id="mc" width="300" height="130" role="img" aria-label="Magnetization vs time"></canvas>
+    <div class="ct" style="margin-top:12px;">phase diagram: |m| vs q</div>
+    <canvas id="pc" width="300" height="130" role="img" aria-label="Magnetization vs q"></canvas>
+  </div>
+</div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+(function(){
+const SIZES=[32,64,128,192,256,320,384,448,512];
+const SPEED_SWEEPS=[1,3,8,20,50];
+const SPEED_LABELS=['very slow','slow','med','fast','turbo'];
+const QC=0.075;
+
+let N=128, q=0.05, sweep=0, running=false, raf=null;
+let spins=null;
+let magHist=[], phaseData=[];
+
+const lcanvas=document.getElementById('lc');
+const lctx=lcanvas.getContext('2d');
+
+function allocSpins(hot){
+  spins=new Int8Array(N*N);
+  for(let i=0;i<N*N;i++) spins[i]=hot?(Math.random()<0.5?1:-1):1;
+  sweep=0; magHist=[];
+}
+
+function mag(){
+  let s=0; for(let i=0;i<spins.length;i++) s+=spins[i];
+  return Math.abs(s/(N*N));
+}
+
+function doSweep(){
+  const n2=N*N;
+  for(let k=0;k<n2;k++){
+    const idx=(Math.random()*n2)|0;
+    const r=(idx/N)|0, c=idx%N;
+    const t=spins[((r-1+N)%N)*N+c];
+    const b=spins[((r+1)%N)*N+c];
+    const l=spins[r*N+(c-1+N)%N];
+    const ri=spins[r*N+(c+1)%N];
+    const sm=t+b+l+ri;
+    let maj=sm>0?1:(sm<0?-1:(Math.random()<0.5?1:-1));
+    if(Math.random()<q) maj=-maj;
+    spins[idx]=maj;
+  }
+  sweep++;
+  const m=mag();
+  magHist.push(m);
+  if(magHist.length>300) magHist.shift();
+}
+
+function drawLattice(){
+  if(N<=320){
+    const cs=320/N;
+    const id=lctx.createImageData(320,320);
+    const d=id.data;
+    for(let r=0;r<N;r++){
+      const y0=(r*cs+0.5)|0, y1=((r+1)*cs+0.5)|0;
+      for(let c=0;c<N;c++){
+        const up=spins[r*N+c]===1;
+        const x0=(c*cs+0.5)|0, x1=((c+1)*cs+0.5)|0;
+        const R=up?55:226, G=up?138:75, B=up?221:74;
+        for(let py=y0;py<y1;py++){
+          for(let px=x0;px<x1;px++){
+            const i=(py*320+px)*4;
+            d[i]=R;d[i+1]=G;d[i+2]=B;d[i+3]=255;
+          }
+        }
+      }
+    }
+    lctx.putImageData(id,0,0);
+  } else {
+    const off=new OffscreenCanvas(N,N);
+    const oc=off.getContext('2d');
+    const id=oc.createImageData(N,N);
+    const d=id.data;
+    for(let i=0;i<N*N;i++){
+      const up=spins[i]===1;
+      const p=i*4;
+      d[p]=up?55:226;d[p+1]=up?138:75;d[p+2]=up?221:74;d[p+3]=255;
+    }
+    oc.putImageData(id,0,0);
+    lctx.drawImage(off,0,0,320,320);
+  }
+}
+
+let magChart=null, phaseChart=null;
+
+function buildMagChart(){
+  if(magChart) magChart.destroy();
+  magChart=new Chart(document.getElementById('mc'),{
+    type:'line',
+    data:{labels:[],datasets:[{label:'|m|',data:[],borderColor:'#378add',borderWidth:1.5,pointRadius:0,tension:0.3,fill:false}]},
+    options:{responsive:false,animation:false,plugins:{legend:{display:false}},
+      scales:{x:{display:false},y:{min:0,max:1,ticks:{font:{size:10},color:'#888',stepSize:0.5},grid:{color:'rgba(128,128,128,0.1)'}}}}
+  });
+}
+
+function buildPhaseChart(){
+  if(phaseChart) phaseChart.destroy();
+  phaseChart=new Chart(document.getElementById('pc'),{
+    type:'line',
+    data:{labels:[],datasets:[
+      {label:'|m|',data:[],borderColor:'#1d9e75',borderWidth:2,pointRadius:3,pointBackgroundColor:'#1d9e75',tension:0.2,fill:false},
+      {label:'qc',data:[],borderColor:'#d4537e',borderWidth:1,borderDash:[4,3],pointRadius:0,fill:false}
+    ]},
+    options:{responsive:false,animation:false,plugins:{legend:{display:false}},
+      scales:{
+        x:{title:{display:true,text:'q',font:{size:10},color:'#888'},ticks:{font:{size:9},color:'#888'},grid:{color:'rgba(128,128,128,0.1)'}},
+        y:{min:0,max:1,title:{display:true,text:'|m|',font:{size:10},color:'#888'},ticks:{font:{size:10},color:'#888',stepSize:0.5},grid:{color:'rgba(128,128,128,0.1)'}}
+      }}
+  });
+}
+
+function updateMagChart(){
+  if(!magChart) return;
+  magChart.data.labels=magHist.map((_,i)=>i);
+  magChart.data.datasets[0].data=magHist.map(v=>+v.toFixed(3));
+  magChart.update('none');
+}
+
+function updatePhaseChart(){
+  if(!phaseChart) return;
+  const sorted=[...phaseData].sort((a,b)=>a.q-b.q);
+  phaseChart.data.labels=sorted.map(d=>d.q.toFixed(3));
+  phaseChart.data.datasets[0].data=sorted.map(d=>+d.m.toFixed(3));
+  phaseChart.update('none');
+}
+
+function updateStats(){
+  const m=mag();
+  document.getElementById('sm').textContent=m.toFixed(3);
+  document.getElementById('sq').textContent=q.toFixed(3);
+  document.getElementById('ss').textContent=sweep;
+  document.getElementById('sp').textContent=q<QC-0.005?'ordered':q>QC+0.015?'disordered':'critical';
+}
+
+function getSweepsPerFrame(){
+  return SPEED_SWEEPS[parseInt(document.getElementById('sps').value)-1];
+}
+
+function loop(){
+  if(!running) return;
+  const s=getSweepsPerFrame();
+  for(let i=0;i<s;i++) doSweep();
+  drawLattice();
+  updateMagChart();
+  updateStats();
+  raf=requestAnimationFrame(loop);
+}
+
+function setWarn(){
+  const w=document.getElementById('warnMsg');
+  w.textContent=N>=384?'Large lattice — simulation may be slow in browser. Use Turbo speed.':'';
+}
+
+document.getElementById('qs').addEventListener('input',function(){
+  q=parseInt(this.value)/100;
+  document.getElementById('qv').textContent=q.toFixed(2);
+});
+
+document.getElementById('ns').addEventListener('input',function(){
+  N=SIZES[parseInt(this.value)];
+  document.getElementById('nv').textContent=N;
+  setWarn();
+  if(running){running=false;document.getElementById('btnR').textContent='Run';cancelAnimationFrame(raf);}
+  allocSpins(true); drawLattice(); updateStats();
+});
+
+document.getElementById('sps').addEventListener('input',function(){
+  document.getElementById('spv').textContent=SPEED_LABELS[parseInt(this.value)-1];
+});
+
+document.getElementById('btnR').addEventListener('click',function(){
+  running=!running;
+  this.textContent=running?'Pause':'Run';
+  if(running) raf=requestAnimationFrame(loop);
+  else cancelAnimationFrame(raf);
+});
+
+document.getElementById('btnSt').addEventListener('click',function(){
+  if(running) return;
+  for(let i=0;i<3;i++) doSweep();
+  drawLattice(); updateMagChart(); updateStats();
+});
+
+document.getElementById('btnRs').addEventListener('click',function(){
+  if(running){running=false;document.getElementById('btnR').textContent='Run';cancelAnimationFrame(raf);}
+  allocSpins(true); drawLattice(); updateMagChart(); updateStats();
+});
+
+document.getElementById('btnSc').addEventListener('click',function(){
+  if(running){running=false;document.getElementById('btnR').textContent='Run';cancelAnimationFrame(raf);}
+  const btn=this; btn.disabled=true; btn.textContent='Scanning…';
+  phaseData=[];
+  const scanN=Math.min(N,128);
+  const origN=N; N=scanN;
+  const qVals=[];
+  for(let qi=0;qi<=25;qi++) qVals.push(qi*0.008);
+  let idx=0;
+  function next(){
+    if(idx>=qVals.length){
+      N=origN; document.getElementById('nv').textContent=N;
+      allocSpins(true); drawLattice(); updateStats();
+      btn.disabled=false; btn.textContent='Re-scan ↗';
+      return;
+    }
+    q=qVals[idx++];
+    document.getElementById('qs').value=Math.round(q*100);
+    document.getElementById('qv').textContent=q.toFixed(3);
+    allocSpins(false);
+    for(let s=0;s<600;s++) doSweep();
+    let mAvg=0;
+    for(let s=0;s<300;s++){doSweep();mAvg+=mag();}
+    mAvg/=300;
+    phaseData.push({q,m:mAvg});
+    updatePhaseChart(); updateStats();
+    setTimeout(next,4);
+  }
+  next();
+});
+
+allocSpins(true);
+buildMagChart();
+buildPhaseChart();
+drawLattice();
+updateStats();
+setWarn();
+})();
+</script>
